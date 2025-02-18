@@ -34,7 +34,8 @@
 
 /* Author: Ioan Sucan */
 
-#pragma once
+#ifndef MOVEIT_CORE_ROBOT_MODEL_PLANAR_JOINT_MODEL_
+#define MOVEIT_CORE_ROBOT_MODEL_PLANAR_JOINT_MODEL_
 
 #include <moveit/robot_model/joint_model.h>
 
@@ -46,10 +47,9 @@ namespace core
 class PlanarJointModel : public JointModel
 {
 public:
-  /** \brief different types of planar joints we support */
   enum MotionModel
   {
-    HOLONOMIC,  // default
+    HOLONOMIC,
     DIFF_DRIVE
   };
 
@@ -59,7 +59,7 @@ public:
   void getVariableRandomPositions(random_numbers::RandomNumberGenerator& rng, double* values,
                                   const Bounds& other_bounds) const override;
   void getVariableRandomPositionsNearBy(random_numbers::RandomNumberGenerator& rng, double* values,
-                                        const Bounds& other_bounds, const double* seed,
+                                        const Bounds& other_bounds, const double* near,
                                         const double distance) const override;
   bool enforcePositionBounds(double* values, const Bounds& other_bounds) const override;
   bool satisfiesPositionBounds(const double* values, const Bounds& other_bounds, double margin) const override;
@@ -82,9 +82,14 @@ public:
     angular_distance_weight_ = weight;
   }
 
-  double getMinTranslationalDistance() const
+  void setTurningRadius(double turning_radius)
   {
-    return min_translational_distance_;
+      turning_radius_ = turning_radius;
+  }
+
+  void setMotionModel(MotionModel motion_model)
+  {
+    motion_model_ = motion_model;
   }
 
   void setMinTranslationalDistance(double min_translational_distance)
@@ -92,41 +97,44 @@ public:
     min_translational_distance_ = min_translational_distance;
   }
 
-  MotionModel getMotionModel() const
-  {
-    return motion_model_;
-  }
-
-  void setMotionModel(MotionModel model)
-  {
-    motion_model_ = model;
-  }
-
   /// Make the yaw component of a state's value vector be in the range [-Pi, Pi]. enforceBounds() also calls this
   /// function;
   /// Return true if a change is actually made
   bool normalizeRotation(double* values) const;
 
+  // Add Reeds Shepp information
+  enum ReedsSheppPathSegmentType
+  {
+    RS_NOP = 0,
+    RS_LEFT = 1,
+    RS_STRAIGHT = 2,
+    RS_RIGHT = 3
+  };
+  static const ReedsSheppPathSegmentType reedsSheppPathType[18][5];
+
+  class ReedsSheppPath
+  {
+  public:
+    ReedsSheppPath(const ReedsSheppPathSegmentType *type = reedsSheppPathType[0],
+                   double t = std::numeric_limits<double>::max(), double u = 0., double v = 0.,
+                   double w = 0., double x = 0.);
+    double length() const
+    {
+      return totalLength_;
+    }
+
+    const ReedsSheppPathSegmentType *type_;
+    double length_[5];
+    double totalLength_;
+  };
+
 private:
   double angular_distance_weight_;
+  double turning_radius_{0.17};
   MotionModel motion_model_;
-  /// Only used for the differential drive motion model @see computeTurnDriveTurnGeometry
-  double min_translational_distance_;
+  double min_translational_distance_{0.01};
 };
-/**
- * @brief Compute the geometry to turn toward the target point, drive straight and then turn to target orientation
- * @param[in]  from                       A vector representing the initial position [x0, y0, theta0]
- * @param[in]  to                         A vector representing the target position  [x1, y1, theta1]
- * @param[in]  min_translational_distance If the translational distance between \p from and \p to is less than this
- *                                        value the motion will be pure rotation (meters)
- * @param[out] dx                         x1 - x0 (meters)
- * @param[out] dy                         y1 - y0 (meters)
- * @param[out] initial_turn               The initial turn in radians to face the target
- * @param[out] drive_angle                The orientation in radians that the robot will be driving straight at
- * @param[out] final_turn                 The final turn in radians to the target orientation
- */
-void computeTurnDriveTurnGeometry(const double* from, const double* to, const double min_translational_distance,
-                                  double& dx, double& dy, double& initial_turn, double& drive_angle,
-                                  double& final_turn);
 }  // namespace core
 }  // namespace moveit
+
+#endif
