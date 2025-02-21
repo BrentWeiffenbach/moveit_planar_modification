@@ -130,7 +130,7 @@ public:
 
 private:
   double angular_distance_weight_;
-  double turning_radius_{0.17};
+  double turning_radius_{0.1};
   MotionModel motion_model_;
   double min_translational_distance_{0.01};
 };
